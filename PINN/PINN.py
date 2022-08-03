@@ -36,9 +36,9 @@ def get_r(model, mu, k, x):
         g.watch(x)
         yhp = tf.reshape(model(x), (-1, 1))
         dx = tf.cast(g.gradient(yhp, x), dtype=tf.float32)
-        dx2 = tf.cast(g.gradient(dx, x), dtype=tf.float32)
+    dx2 = tf.cast(g.gradient(dx, x), dtype=tf.float32)
 
-        phisics = dx2 + mu*dx + k*yhp
+    phisics = dx2 + mu*dx + k*yhp
     del g
 
     return phisics
@@ -70,9 +70,6 @@ def train_step(model, mu, k, x1, x_data, y_data, adam):
 
     adam.apply_gradients(zip(grad, model.trainable_variables))
     return loss
-
-
-    
 
 
 def trainNN():
@@ -133,9 +130,9 @@ if __name__ == "__main__":
     for i in range(N+1):
         loss = train_step(model, mu, k, x1, x_data, y_data, adam)
         hist.append(loss.numpy())
-        if i%50 == 0:
-            print('It {:05d}: loss = {:10.8e}'.format(i,loss))
-    
+        if i % 50 == 0:
+            print('It {:05d}: loss = {:10.8e}'.format(i, loss))
+
     pred = model.predict(x)
     pred = tf.reshape(pred, (-1, 1))
     fig, axs = plt.subplots(1, 1)
