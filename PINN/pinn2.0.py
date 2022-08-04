@@ -29,47 +29,30 @@ def nn(n_input, n_output, n_hidden, n_layers):
     model.add(layers.Dense(n_output, name="output"))
     return model
 
-
-def get_r(model, mu, k, x):
-
+@tf.function
+def computing(model, mu, k, x1, adam, x_data, y_data):
+    
     with tf.GradientTape(persistent=True) as tape:
-        tape.watch(x)
-        yhp = tf.reshape(model(x), (-1, 1))
-        dx = tf.cast(tape.gradient(yhp, x), dtype=tf.float32)
-    dx2 = tf.cast(tape.gradient(dx, x), dtype=tf.float32)
+        tape.watch(x1)
+        y_pred = tf.reshape(model(x_data), (-1, 1))
+        loss1 = tf.reduce_mean((y_pred-y_data)**2)
+        
+        yhp = tf.reshape(model(x1), (-1, 1))
+        dx = tf.cast(tape.gradient(yhp, x1), dtype=tf.float32)
+        dx2 = tf.cast(tape.gradient(dx, x1), dtype=tf.float32)
 
-    phisics = dx2 + mu*dx + k*yhp
+        phisics = dx2 + 4*dx + 300*yhp
+        loss2 = (1e-4)*tf.reduce_mean(tf.square(phisics))
+        
+
+        # print(loss1.dtype, loss2.dtype, y_pred.dtype)
+        # print(loss1 , loss2)
+        loss = loss1 + loss2
+    model_gradients = tape.gradient(loss, model.trainable_variables)
+    adam.apply_gradients(zip(model_gradients, model.trainable_variables))
     del tape
-
-    return phisics
-
-
-def compute_loss(model, mu, k, x1, x_data, y_data):
-    r = get_r(model, mu, k, x1)
-    loss2 = tf.reduce_mean(tf.square(r))
-    y_pred = tf.reshape(model(x_data), (-1, 1))
-    loss1 = tf.reduce_mean((y_pred-y_data)**2)
-
-    # print(loss1.dtype, loss2.dtype, y_pred.dtype)
-    # print(loss1 , loss2)
-    loss = loss1 + loss2
     return loss
 
-
-def get_grad(model, mu, k, x1, x_data, y_data):
-    with tf.GradientTape(persistent=True) as g:
-        g.watch(model.trainable_variables)
-        loss = compute_loss(model, mu, k, x1, x_data, y_data)
-    tape = g.gradient(loss, model.trainable_variables)
-    del g
-    return loss, tape
-
-
-def train_step(model, mu, k, x1, x_data, y_data, adam):
-    loss, grad = get_grad(model, mu, k, x1, x_data, y_data)
-
-    adam.apply_gradients(zip(grad, model.trainable_variables))
-    return loss
 
 
 def trainNN():
@@ -105,8 +88,8 @@ if __name__ == "__main__":
     d, w0 = 2, 20
     mu, k = 2*d, w0**2
     hist = []
-    lr_sch = 10**-3
-    N = 10000
+    lr_sch = 1e-4
+    N = 20000
 
     x = tf.linspace(0, 1, 500)
     x = tf.cast(tf.reshape(x, (-1, 1)), dtype=tf.float32)
@@ -114,24 +97,33 @@ if __name__ == "__main__":
     y = oscilator(d, w0, x)
     y = tf.cast(tf.reshape(y, (-1, 1)), dtype=tf.float32)
 
-    x_data = x[0:400:20]
-    y_data = y[0:400:20]
+    x_data = x[0:500:20]
+    y_data = y[0:500:20]
 
     # print(x_data.dtype)
 
     x1 = tf.linspace(0, 1, 30)
-    x1 = tf.reshape(x1, (-1, 1))
+    x1 = tf.cast(tf.reshape(x1, (-1, 1)), dtype=tf.float32)
 
     n_input, n_output, n_hidden, n_layers = 1, 1, 32, 3
     model = nn(n_input, n_output, n_hidden, n_layers)
+    model.summary()
+    
+
     #get_r(model, mu, k, x1)
     adam = optimizers.Adam(learning_rate=lr_sch)
 
     for i in range(N+1):
-        loss = train_step(model, mu, k, x1, x_data, y_data, adam)
+        loss = computing(model, mu, k, x1, adam, x_data, y_data)
         hist.append(loss.numpy())
         if i % 50 == 0:
             print('It {:05d}: loss = {:10.8e}'.format(i, loss))
+
+    # for i in range(N+1):
+    #     loss = train_step(model, mu, k, x1, x_data, y_data, adam)
+    #     hist.append(loss.numpy())
+    #     if i % 50 == 0:
+    #         print('It {:05d}: loss = {:10.8e}'.format(i, loss))
 
     pred = model.predict(x)
     pred = tf.reshape(pred, (-1, 1))
